@@ -1,0 +1,151 @@
+//Draft for future runs; every run stores its own immutable snapshot
+//Numeric weights are relative probabilities, not measured real-store data
+
+export const modelConfig = {
+    modelVersion: '1.0.0',
+    status: 'draft',
+    scenario: {
+        name: 'Small autonomous CBD supermarket',
+        location: 'Swanston Street, Melbourne Town Hall vicinity, Melbourne CBD',
+        operatingHours: '24 hours',
+        onSiteStaff: 0,
+        simulationDays: 60,
+        defaultStartDate: '2026-01-05',
+        calendar: 'Melbourne local calender dates; simulated days without daylight-savings hour adjustments'
+    },
+    finance: {
+        currency: 'AUD',
+        openingInventoryBudgetCents: 4000000,
+        openingOperatingCashCents: 1500000,
+        inventoryBudgetRemainderBecomesCash: false,
+        openingInventoryDeductedFromOperatingCash: false,
+        moneyRepresentation: 'integer cents',
+        inventoryValuation: 'purchase cost',
+        grossProfitDefinition:' sales revenue minus purchases cost of goods sold; write offs shown separately',
+        taxTreatment: ' Costs and prices use one consistent simplified basis; GST is not separately modelled',
+        excludedCosts: ['rent', 'fit-out', 'refrigeration', 'utilities', 'insurance', 'autonomous-store hardware', 'corporate overhead'] 
+    },
+    catalogue: {
+        targetProductCount: 60,
+        categories: [
+        { id: 'pantry', name: 'Grocery and pantry', plannedProducts: 10 },
+        { id: 'drinks', name: 'Drinks', plannedProducts: 10 },
+        { id: 'snacks', name: 'Snacks and confectionery', plannedProducts: 8 },
+        { id: 'dairy', name: 'Dairy and chilled', plannedProducts: 8 },
+        { id: 'fresh', name: 'Fresh and bakery', plannedProducts: 8 },
+        { id: 'ready_meals', name: 'Ready-to-eat food', plannedProducts: 8 },
+        { id: 'household', name: 'Household essentials', plannedProducts: 4 },
+        { id: 'personal', name: 'Personal and convenience', plannedProducts: 4 },
+        ],
+        popularityWeightRange: { min: 1, max: 5 },
+        openingInventoryPlan: 'Use bootstrap demand and stock-cover targets as a starting point. Review perishable quantities and category breadth, then validate total cost against the budget; spending the full budget is not required.',
+    },
+    customers: {
+    basePerDay: { weekday: 160, weekend: 130 },
+    dailyVariation: { minMultiplier: 0.8, maxMultiplier: 1.2, distribution: 'uniform' },
+    countRule: 'round(base for calendar day type × one daily multiplier)',
+    weekendDays: [0, 6],
+    timeBands: [
+      { label: '00:00–06:00', startHour: 0, endHour: 6, weekdayWeight: 0.02, weekendWeight: 0.04 },
+      { label: '06:00–10:00', startHour: 6, endHour: 10, weekdayWeight: 0.16, weekendWeight: 0.14 },
+      { label: '10:00–14:00', startHour: 10, endHour: 14, weekdayWeight: 0.40, weekendWeight: 0.28 },
+      { label: '14:00–18:00', startHour: 14, endHour: 18, weekdayWeight: 0.24, weekendWeight: 0.26 },
+      { label: '18:00–22:00', startHour: 18, endHour: 22, weekdayWeight: 0.15, weekendWeight: 0.23 },
+      { label: '22:00–24:00', startHour: 22, endHour: 24, weekdayWeight: 0.03, weekendWeight: 0.05 },
+    ],
+    arrivalRule: 'Select a time band by day-type weights, select a time uniformly within that band, then process customers in arrival order.',
+    rationale: 'A hypothetical commuter-oriented CBD store has more weekday activity and a stronger weekday lunchtime peak. These are chosen scenario assumptions, not measured footfall.',
+    },
+    shopping: {
+         missions: [
+      {
+        id: 'lunch', name: 'Lunch, snack or drink', weekdayWeight: 0.45, weekendWeight: 0.30,
+        basketLines: { min: 1, max: 3 },
+        categoryWeights: { drinks: 0.40, ready_meals: 0.35, snacks: 0.15, fresh: 0.10 },
+      },
+      {
+        id: 'top_up', name: 'Grocery top-up', weekdayWeight: 0.35, weekendWeight: 0.45,
+        basketLines: { min: 3, max: 6 },
+        categoryWeights: { pantry: 0.25, dairy: 0.20, fresh: 0.20, drinks: 0.10, snacks: 0.10, ready_meals: 0.05, household: 0.05, personal: 0.05 },
+      },
+      {
+        id: 'essentials', name: 'Household or personal essentials', weekdayWeight: 0.20, weekendWeight: 0.25,
+        basketLines: { min: 1, max: 4 },
+        categoryWeights: { household: 0.40, personal: 0.25, pantry: 0.20, dairy: 0.10, drinks: 0.05 },
+      },
+    ],
+        basketLineDistribution: 'uniform integer within the mission range',
+        unitsPerLine: [{ units: 1, weight: 0.85 }, { units: 2, weight: 0.15 }],
+        productSelection: 'Select a category using mission weights, then an unselected product in that category using its popularity weight. Renormalize over categories with eligible unselected products; stop if none remain.',
+        availabilityRule: 'Generate intended demand before checking stock. Supply min(requested units, available non-expired units), keep other fulfilled lines, and record unmet units.',
+        emptyBasketRule: 'Retain the customer and unmet demand, but do not create a completed transaction when no units are sold.',
+        substitution: false,
+        discounts: false,
+        priceElasticity: false,
+
+    },
+    inventory: {
+        batches: true,
+        openingStockReceivedDay: 1,
+        expiresOnDayRule: 'received day + shelf-life days',
+        expiryRemovalRule: 'Before customers, remove any remaining batch units where current day >= expires-on day.',
+        sellingPolicy: 'Earliest expiry first, then receipt day and batch ID; non-perishable batches use receipt order.',
+        expiryWarningDays: 2,
+        warningRule: 'At close, identify saleable perishable units with 1 or 2 days remaining until expiry.',
+        writeOffValuation: 'expired units * recorded batch unit purchase cost',
+        runtimeStockEditable: false,    
+
+    },
+    brain: {
+        demandWindowDays: 7,
+        observedDemandRule: 'Mean units sold across the last up to 7 completed calendar days, including zero-sale days, with a 0.25 unit/day minimum.',
+        minimumDemandUnitsPerDay: 0.25,
+        bootstrapDemandRule: 'Before any completed day exists, use 2 * product popularity weight units/day.',
+        bootstrapUnitsPerPopularityWeight: 2,
+        lowStockCoverDays: 2,
+        lowStockRule: 'At close, record low stock when 0 < saleable units <= ceil(demand estimate * 2). Record sold out separately when saleable units = 0.',
+        targetCoverDays: { nonPerishable: 7, perishable: 3 },
+        perishableCoverRule: 'Cap target cover at max(1, shelf-life days - 1).',
+        slowMover: {
+        minimumCompletedDays: 14,
+        observationWindowDays: 14,
+        rule: 'Closing stock > 0 and the last 14 days of sales are less than half the closing stock; zero sales also qualifies.',
+        reducedTargetCoverDays: { nonPerishable: 3, perishable: 1 },
+        action: 'Reduce future replenishment target cover, record the evidence, and flag for manager review; no automatic discount or write-off.',
+        },
+        replenishment: {
+        leadTimeDays: 1,
+        orderAt: 'after customer activity and closing review',
+        receiptAt: 'before customers on the next day',
+        paymentAt: 'when the order is placed',
+        lastOrderDay: 59,
+        reviewRule: 'Consider ordering if stock after tomorrow-morning expiry would be <= the low-stock threshold, including projected sold-out products.',
+        quantityRule: 'max(0, ceil(demand estimate * effective target-cover days) - units usable tomorrow - already outstanding units for tomorrow)',
+        priorityRule: 'Projected sold-out products first, then lower projected days of cover, then higher unit gross margin, then product ID.',
+        cashRule: 'For each priority product, order min(desired units, floor(remaining cash / unit purchase cost)); deduct cost immediately. Record any reduced or deferred quantity caused by cash.',
+        managerApprovalRequired: false,
+        quantityUnit: 'individual catalogue units, without supplier minimum-order quantities',
+        },
+        eventRule: 'Record each condition once per product per day per event type, with evidence, action and reason; link any order and subsequent receipt.',
+    },
+    dailyCycle: ['Receive previous-day replenishment', 'Remove expired stock', 'Generate customers and process sales', 'Review closing conditions and warnings', 'Place affordable orders on Days 1-59 only', 'Retain daily evidence and reconciliation inputs'],
+    recording: {
+         persistentStore: 'SQLite',
+        runConfigurationFrozenAtStart: true,
+        historyAppendOnly: true,
+        snapshotIncludes: ['model version and full configuration', 'simulation start date', 'product costs, prices, popularity and opening quantities', 'opening operating cash'],
+        retain: ['customers including no-purchase visits', 'intended and unmet demand', 'transactions and batch-level sales allocations', 'inventory movements and batches', 'expiry write-offs', 'replenishment orders and receipts', 'cash movements', 'Store Brain decisions', 'Days 1–60'],
+        traceability: 'All history is linked to Run ID, day and relevant product/transaction/order identifiers. A change to assumptions or engine logic requires a new model version and new run.'
+    },
+   limitations: [
+    'Customer volume, mission mix, popularity and time patterns are synthetic assumptions; real store data is needed for calibration and external validation.',
+    'Sales-based demand can underestimate demand during stockouts. Retained unmet demand should be used to diagnose this limitation in later reports.',
+    'All opening inventory is treated as newly received on Day 1; actual opening stock can have mixed ages.',
+    'A fixed one-day delivery lead time omits supplier delays, case sizes, shelf capacity and physical shelf-filling.',
+    'A constant price model omits promotions, substitution and price-sensitive customer behaviour.',
+    'Gross profit excludes premises and operating overhead and is not net business profit. Write-off losses are disclosed separately.',
+    'Calendar dates affect weekday/weekend demand only; holidays, seasonal effects and weather are not modelled.',
+  ],
+
+
+}
