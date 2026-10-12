@@ -1,14 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import {
-  useApi,
   RemoteState,
   Metrics,
   Table,
-  numericColumn as n,
-  money,
-  number,
-  label,
 } from './ui.jsx';
+import { numericColumn as n, money, number, label } from '../services/format.js';
+import { useApi } from '../hooks/useApi.js';
 
 const resources = {
   product: 'products',

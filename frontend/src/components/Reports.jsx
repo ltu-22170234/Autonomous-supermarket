@@ -1,16 +1,13 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
-  money,
-  number,
-  label,
   Metrics,
   Section,
   Table,
-  numericColumn as n,
   Trend,
-  useApi,
   RemoteState,
 } from './ui.jsx';
+import { money, number, label, numericColumn as n } from '../services/format.js';
+import { useApi } from '../hooks/useApi.js';
 
 const views = [
   ['performance', 'Commercial performance'],
@@ -475,6 +472,60 @@ export function Operations({ report, goDay, openProduct }) {
         {!report.materialCases.length && (
           <p>No material cases were recorded.</p>
         )}
+      </Section>
+
+      <Section
+        title="Persistent availability problems"
+        description="The five products with the most unmet requested units. Sold-out counts are closing product/day events; unmet demand measures requests that could not be supplied."
+      >
+        <p><strong>Saved demand rule:</strong> {report.demandRule}</p>
+        {report.availabilityCases.map((product) => (
+          <article className="case" key={product.product_id}>
+            <h3>
+              <RecordLink id={product.product_id} onOpen={openProduct}>
+                {product.name}
+              </RecordLink>
+            </h3>
+            <p>
+              {number(product.unmet_units)} unmet of {number(product.requested_units)} requested units;
+              {' '}{number(product.fulfillment_percent, 1)}% fulfilled.
+              {' '}Unmet demand on {number(product.unmet_days)} days;
+              {' '}{number(product.stockout_events)} sold-out closing events.
+            </p>
+            <details>
+              <summary>Inspect demand, decisions and next-day availability</summary>
+              <p>
+                Estimates are recorded at closing. Orders arrive before the next day’s
+                customers; next-day unmet units show whether availability problems continued.
+                Day 60 has no next-day outcome. A delivery alone does not establish that demand was met.
+              </p>
+              <Table
+                title={`${product.name}: daily availability evidence`}
+                rows={product.days}
+                rowKey="day"
+                columns={[
+                  { key: 'day', label: 'Day', render: (row) => (
+                    <button type="button" className="text-button" onClick={() => goDay(row.day)}>
+                      {row.day}
+                    </button>
+                  ) },
+                  n('requested_units', 'Requested'),
+                  n('sold_units', 'Sold'),
+                  n('unmet_units', 'Unmet'),
+                  n('demand_estimate', 'Estimated / day', (v) => number(v, 2)),
+                  n('closing_units', 'Closing'),
+                  n('desired_units', 'Desired order'),
+                  n('ordered_units', 'Ordered'),
+                  n('next_received_units', 'Next-day received'),
+                  n('next_sold_units', 'Next-day sold'),
+                  n('next_unmet_units', 'Next-day unmet'),
+                  { key: 'action', label: 'Closing decision' },
+                ]}
+              />
+            </details>
+          </article>
+        ))}
+        {!report.availabilityCases.length && <p>No unmet demand was recorded. Count: 0.</p>}
       </Section>
 
       <Section title="Closing inventory and slow movers">

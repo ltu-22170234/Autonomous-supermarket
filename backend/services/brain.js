@@ -1,4 +1,4 @@
-export function analyseStock(products, batches, salesHistory, config, day) {
+export function analyseStock(products, batches, salesHistory, demandHistory, config, day) {
   return products.map((product) => {
     // Stock currently available for sale.
     const live = (batches.get(product.product_id) ?? []).filter(
@@ -21,12 +21,20 @@ export function analyseStock(products, batches, salesHistory, config, day) {
       .reduce((sum, batch) => sum + batch.remaining, 0);
 
     const history = salesHistory.get(product.product_id) ?? [];
-    const recent = history.slice(-config.brain.demandWindowDays);
+    const recent = (demandHistory.get(product.product_id) ?? [])
+      .slice(-config.brain.demandWindowDays);
+    const observedDemand = recent.length
+      ? recent.reduce((sum, units) => sum + units, 0) / recent.length
+      : null;
+    const observedSales = history.slice(-config.brain.demandWindowDays);
+    const salesMean = observedSales.length
+      ? observedSales.reduce((sum, units) => sum + units, 0) / observedSales.length
+      : null;
 
     const estimate = recent.length
       ? Math.max(
           config.brain.minimumDemandUnitsPerDay,
-          recent.reduce((sum, units) => sum + units, 0) / recent.length
+          observedDemand * config.brain.demandSafetyMultiplier
         )
       : config.brain.bootstrapUnitsPerPopularityWeight *
         product.popularity_weight;
@@ -85,6 +93,13 @@ export function analyseStock(products, batches, salesHistory, config, day) {
       closing,
       usableTomorrow,
       estimate,
+      demandEvidence: {
+        basis: config.brain.demandBasis,
+        observationDays: recent.length,
+        requestedMean: observedDemand,
+        soldMean: salesMean,
+        safetyMultiplier: config.brain.demandSafetyMultiplier,
+      },
       threshold,
       target,
       slow,

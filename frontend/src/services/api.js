@@ -58,9 +58,10 @@ export async function request(path, options = {}) {
 
     try {
       data = JSON.parse(text);
-    } catch {
+    } catch (error) {
       throw new Error(
-        `The API returned an invalid JSON response (HTTP ${response.status}). Check the backend and API route.`
+        `The API returned an invalid JSON response (HTTP ${response.status}). Check the backend and API route.`,
+        { cause: error }
       );
     }
 
@@ -80,7 +81,8 @@ export async function request(path, options = {}) {
     if (error.name === 'AbortError') {
       if (timedOut) {
         throw new Error(
-          'The request timed out. Check the backend; check the run list before repeating a run creation.'
+          'The request timed out. Check the backend; check the run list before repeating a run creation.',
+          { cause: error }
         );
       }
 
@@ -90,7 +92,8 @@ export async function request(path, options = {}) {
 
     if (error instanceof TypeError) {
       throw new Error(
-        'Could not connect to the API. Check that the backend is running.'
+        'Could not connect to the API. Check that the backend is running.',
+        { cause: error }
       );
     }
 

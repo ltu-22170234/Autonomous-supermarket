@@ -490,6 +490,8 @@ export function reportRun(db, id) {
 
   const result = {
     run,
+    demandRule: configuration.brain.observedDemandRule,
+    demandBasis: configuration.brain.demandBasis ?? 'sold_units',
     summary,
     daily,
     products,
@@ -499,12 +501,95 @@ export function reportRun(db, id) {
     hours,
     eventCounts,
     materialCases,
+    availabilityCases: availabilityCases(db, id, products, eventRows),
     categoryNames,
   };
 
   result.findings = buildFindings(result);
 
   return result;
+}
+
+// Connect persistent unmet demand to the recorded closing review and next day.
+// All figures come from this run, including reports for older model versions.
+function availabilityCases(db, id, products, events) {
+  const affected = [...products]
+    .filter((product) => product.unmet_units > 0)
+    .sort((a, b) => b.unmet_units - a.unmet_units ||
+      a.product_id.localeCompare(b.product_id))
+    .slice(0, 5);
+
+  if (!affected.length) return [];
+
+  const rows = all(db, `
+    WITH demand AS (
+      SELECT day, product_id, SUM(requested_units) AS requested_units,
+        SUM(fulfilled_units) AS fulfilled_units,
+        SUM(requested_units - fulfilled_units) AS unmet_units
+      FROM demand_items WHERE run_id = ?1 GROUP BY day, product_id
+    ), orders AS (
+      SELECT o.ordered_day AS day, i.product_id,
+        SUM(i.desired_units) AS desired_units, SUM(i.quantity) AS ordered_units
+      FROM replenishment_orders o
+      JOIN replenishment_items i ON i.run_id = o.run_id AND i.order_id = o.order_id
+      WHERE o.run_id = ?1 GROUP BY o.ordered_day, i.product_id
+    )
+    SELECT d.day, d.product_id, d.sold_units, d.closing_units, d.demand_estimate,
+      d.low_stock_threshold, COALESCE(q.requested_units, 0) AS requested_units,
+      COALESCE(q.unmet_units, 0) AS unmet_units,
+      COALESCE(o.desired_units, 0) AS desired_units,
+      COALESCE(o.ordered_units, 0) AS ordered_units,
+      next.received_units AS next_received_units,
+      next.sold_units AS next_sold_units,
+      CASE WHEN next.day IS NULL THEN NULL
+        ELSE COALESCE(nq.unmet_units, 0) END AS next_unmet_units
+    FROM daily_inventory d
+    LEFT JOIN demand q ON q.day = d.day AND q.product_id = d.product_id
+    LEFT JOIN orders o ON o.day = d.day AND o.product_id = d.product_id
+    LEFT JOIN daily_inventory next ON next.run_id = d.run_id
+      AND next.product_id = d.product_id AND next.day = d.day + 1
+    LEFT JOIN demand nq ON nq.day = next.day AND nq.product_id = next.product_id
+    WHERE d.run_id = ?1 ORDER BY d.day
+  `, id);
+
+  const decisions = new Map();
+  const priority = { replenishment: 1, low_stock: 2, sold_out: 3, cash_constraint: 4 };
+  for (const event of events) {
+    if (!priority[event.event_type]) continue;
+    const key = `${event.product_id}:${event.day}`;
+    const previous = decisions.get(key);
+    if (!previous || priority[event.event_type] > priority[previous.event_type]) {
+      decisions.set(key, event);
+    }
+  }
+
+  return affected.map((product) => {
+    const days = rows.filter((row) => row.product_id === product.product_id)
+      .map((row) => {
+        const decision = decisions.get(`${product.product_id}:${row.day}`);
+        const evidence = decision ? JSON.parse(decision.evidence_json) : {};
+        return {
+          ...row,
+          desired_units: evidence.desiredUnits ?? row.desired_units,
+          target_units: evidence.targetUnits ?? null,
+          action: decision?.action ?? (row.day === 60
+            ? 'No order; simulation horizon ends'
+            : 'No order required by the recorded closing review'),
+        };
+      });
+
+    return {
+      product_id: product.product_id,
+      name: product.name,
+      requested_units: product.requested_units,
+      sold_units: product.units_sold,
+      unmet_units: product.unmet_units,
+      stockout_events: product.stockout_events,
+      unmet_days: days.filter((day) => day.unmet_units > 0).length,
+      fulfillment_percent: product.units_sold / product.requested_units * 100,
+      days,
+    };
+  });
 }
 
 function buildFindings(report) {
@@ -523,7 +608,7 @@ function buildFindings(report) {
     (a, b) => b.write_off_cents - a.write_off_cents
   )[0];
 
-  const dayLost = [...daily].sort(
+  const dayLost = [...(report.availabilityCases[0]?.days ?? daily)].sort(
     (a, b) => b.unmet_units - a.unmet_units
   )[0]?.day ?? 1;
 
@@ -553,7 +638,9 @@ function buildFindings(report) {
       evidence: `${unavailable.name}: ${unavailable.unmet_units} unmet of ${unavailable.requested_units} requested units; ${unavailable.stockout_events} sold-out closing events. Overall fulfillment was ${fulfillment}.`,
 
       diagnosis: summary.unmet_units
-        ? 'Fixed stock-cover targets and one-day lead time can leave peaks uncovered. Sales-only demand estimates can also be depressed by stockouts. These are plausible contributing factors, not an isolated causal proof.'
+        ? report.demandBasis === 'requested_units'
+          ? 'The brain uses recorded requests, including unmet demand, with a safety allowance. Rolling averages, shelf-life caps and the one-day lead time can still leave peaks uncovered. Inspect the daily availability evidence before attributing a cause.'
+          : 'Fixed stock-cover targets and one-day lead time can leave peaks uncovered. Sales-only demand estimates can also be depressed by stockouts. These are plausible contributing factors, not an isolated causal proof.'
         : 'The result is limited to this configuration and its generated demand; it does not establish availability at different customer volumes.',
 
       implication: summary.unmet_units

@@ -1,130 +1,7 @@
-import React, {
-  useCallback,
-  useEffect,
-  useState,
-} from 'react';
-
-import { request } from '../services/api.js';
+import { useState } from 'react';
+import { number } from '../services/format.js';
 
 const empty = [];
-
-const aud = new Intl.NumberFormat('en-AU', {
-  style: 'currency',
-  currency: 'AUD',
-});
-
-function validNumber(value) {
-  return (
-    value !== null &&
-    value !== undefined &&
-    value !== '' &&
-    Number.isFinite(Number(value))
-  );
-}
-
-// Convert integer cents to an AUD display value.
-export function money(cents) {
-  return validNumber(cents)
-    ? aud.format(Number(cents) / 100)
-    : '—';
-}
-
-export function number(value, digits = 0) {
-  if (!validNumber(value)) return '—';
-
-  return new Intl.NumberFormat('en-AU', {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  }).format(Number(value));
-}
-
-export function label(value) {
-  return String(value ?? '')
-    .replaceAll('_', ' ')
-    .replace(/^./, (character) => character.toUpperCase());
-}
-
-// Fetch read-only API data and support cancellation/retry.
-export function useApi(path, revision = 0) {
-  const [attempt, setAttempt] = useState(0);
-
-  const key = JSON.stringify([path, revision, attempt]);
-
-  const [state, setState] = useState({
-    key: null,
-    data: null,
-    error: '',
-    loading: Boolean(path),
-  });
-
-  const retry = useCallback(() => {
-    setAttempt((value) => value + 1);
-  }, []);
-
-  useEffect(() => {
-    if (!path) {
-      setState({
-        key,
-        data: null,
-        error: '',
-        loading: false,
-      });
-
-      return;
-    }
-
-    const controller = new AbortController();
-    let active = true;
-
-    setState({
-      key,
-      data: null,
-      error: '',
-      loading: true,
-    });
-
-    request(path, { signal: controller.signal })
-      .then((data) => {
-        if (active) {
-          setState({
-            key,
-            data,
-            error: '',
-            loading: false,
-          });
-        }
-      })
-      .catch((error) => {
-        if (active && error.name !== 'AbortError') {
-          setState({
-            key,
-            data: null,
-            error: error.message,
-            loading: false,
-          });
-        }
-      });
-
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [path, key]);
-
-  // Prevent old data appearing under a newly selected run.
-  const visible = state.key === key
-    ? state
-    : {
-        data: null,
-        error: '',
-        loading: Boolean(path),
-      };
-
-  return {
-    ...visible,
-    retry,
-  };
-}
 
 export function RemoteState({ state }) {
   if (state.loading) {
@@ -186,19 +63,6 @@ export function Section({ title, description, children }) {
   );
 }
 
-export function numericColumn(
-  key,
-  caption,
-  format = number
-) {
-  return {
-    key,
-    label: caption,
-    numeric: true,
-    render: (row) => format(row[key]),
-  };
-}
-
 export function Table({
   title = 'Records',
   rows = empty,
@@ -206,11 +70,16 @@ export function Table({
   pageSize = 12,
   rowKey = 'product_id',
 }) {
-  const [page, setPage] = useState(0);
+  const [pagination, setPagination] = useState({ rows, title, page: 0 });
+  const changed = rows !== pagination.rows || title !== pagination.title;
 
-  useEffect(() => {
-    setPage(0);
-  }, [rows, title]);
+  // Reset with the changed inputs during render, before showing stale pages.
+  if (changed) {
+    setPagination({ rows, title, page: 0 });
+  }
+
+  const page = changed ? 0 : pagination.page;
+  const setPage = (nextPage) => setPagination({ rows, title, page: nextPage });
 
   const limit =
     Number.isInteger(pageSize) && pageSize > 0

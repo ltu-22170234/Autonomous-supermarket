@@ -2,7 +2,7 @@
 //Numeric weights are relative probabilities, not measured real-store data
 
 export const modelConfig = {
-    modelVersion: '1.0.0',
+    modelVersion: '1.1.0',
     status: 'draft',
     scenario: {
         name: 'Small autonomous CBD supermarket',
@@ -98,7 +98,9 @@ export const modelConfig = {
     },
     brain: {
         demandWindowDays: 7,
-        observedDemandRule: 'Mean units sold across the last up to 7 completed calendar days, including zero-sale days, with a 0.25 unit/day minimum.',
+        demandBasis: 'requested_units',
+        demandSafetyMultiplier: 1.1,
+        observedDemandRule: 'Mean requested units (fulfilled plus unmet) across the last up to 7 completed calendar days, including zero-demand days, multiplied by a 1.10 safety allowance, with a 0.25 unit/day minimum. Only completed-day demand is observed; no future demand is used.',
         minimumDemandUnitsPerDay: 0.25,
         bootstrapDemandRule: 'Before any completed day exists, use 2 * product popularity weight units/day.',
         bootstrapUnitsPerPopularityWeight: 2,
@@ -139,7 +141,7 @@ export const modelConfig = {
     },
    limitations: [
     'Customer volume, mission mix, popularity and time patterns are synthetic assumptions; real store data is needed for calibration and external validation.',
-    'Sales-based demand can underestimate demand during stockouts. Retained unmet demand should be used to diagnose this limitation in later reports.',
+    'The prototype records intended baskets, including unmet requests. A real autonomous store would need a way to observe lost demand; completed sales alone would underestimate demand during stockouts. The 10% safety allowance is an assumption requiring calibration.',
     'All opening inventory is treated as newly received on Day 1; actual opening stock can have mixed ages.',
     'A fixed one-day delivery lead time omits supplier delays, case sizes, shelf capacity and physical shelf-filling.',
     'A constant price model omits promotions, substitution and price-sensitive customer behaviour.',

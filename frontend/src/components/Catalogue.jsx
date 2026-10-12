@@ -1,17 +1,15 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 import { request } from '../services/api.js';
 
 import {
-  useApi,
   RemoteState,
   Section,
   Metrics,
   Table,
-  money,
-  number,
-  numericColumn,
 } from './ui.jsx';
+import { money, number, numericColumn } from '../services/format.js';
+import { useApi } from '../hooks/useApi.js';
 
 function toForm(product) {
   return {

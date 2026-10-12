@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 import {
   createRun,
@@ -9,8 +9,8 @@ import {
   Section,
   Table,
   RemoteState,
-  number,
 } from './ui.jsx';
+import { number } from '../services/format.js';
 
 export default function RunManager({
   configuration,

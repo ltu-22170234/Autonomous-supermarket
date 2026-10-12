@@ -5,9 +5,9 @@ import ModelDeclaration from './components/ModelDeclaration.jsx';
 import RunManager from './components/RunManager.jsx';
 
 import {
-  useApi,
   RemoteState,
 } from './components/ui.jsx';
+import { useApi } from './hooks/useApi.js';
 import Reports from './components/Reports.jsx';
 import AuditModal from './components/AuditModal.jsx';
 export default function App() {

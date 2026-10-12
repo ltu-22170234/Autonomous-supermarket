@@ -168,4 +168,3 @@ export function openDatabase(
   }
 }
 
-export const db = openDatabase();

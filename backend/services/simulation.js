@@ -17,7 +17,7 @@ import {
   fulfillLine,
 } from './brain.js';
 
-export const ENGINE_VERSION = '1.0.0';
+export const ENGINE_VERSION = '1.1.0';
 
 // Repeatable random customer and demand generation.
 export function seededRandom(seed) {
@@ -162,6 +162,9 @@ export function simulateRun(db, options = {}) {
   );
 
   const salesHistory = new Map(
+    products.map((p) => [p.product_id, []])
+  );
+  const demandHistory = new Map(
     products.map((p) => [p.product_id, []])
   );
 
@@ -419,6 +422,7 @@ export function simulateRun(db, options = {}) {
               .reduce((sum, batch) => sum + batch.remaining, 0),
             received: 0,
             sold: 0,
+            requested: 0,
             expired: 0,
           },
         ])
@@ -611,6 +615,7 @@ export function simulateRun(db, options = {}) {
           );
 
           daily.intended += requested;
+          perProduct.get(product.product_id).requested += requested;
           daily.unmet += result.unmet;
 
           if (result.fulfilled > 0) {
@@ -705,6 +710,9 @@ export function simulateRun(db, options = {}) {
         salesHistory.get(product.product_id).push(
           perProduct.get(product.product_id).sold
         );
+        demandHistory.get(product.product_id).push(
+          perProduct.get(product.product_id).requested
+        );
       }
 
       // 5. Review stock and allocate affordable orders.
@@ -712,6 +720,7 @@ export function simulateRun(db, options = {}) {
         products,
         batches,
         salesHistory,
+        demandHistory,
         cfg,
         day
       );
@@ -781,6 +790,8 @@ export function simulateRun(db, options = {}) {
               orderedUnits: order.quantity,
               targetUnits: order.target,
               usableTomorrow: order.usableTomorrow,
+              demandEstimate: order.estimate,
+              demandObservation: order.demandEvidence,
               costCents: order.cost,
               cashBeforeCents: order.cashBefore,
               cashAfterCents: order.cashAfter,
@@ -839,6 +850,7 @@ export function simulateRun(db, options = {}) {
           closingUnits: item.closing,
           usableTomorrow: item.usableTomorrow,
           demandEstimate: item.estimate,
+          demandObservation: item.demandEvidence,
           threshold: item.threshold,
           targetUnits: item.target,
         };
