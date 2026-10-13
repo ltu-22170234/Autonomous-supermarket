@@ -201,5 +201,4 @@ app.use('/api', (req, res) => {
 });
 
 return app;
-  return app;
 }
