@@ -26,6 +26,26 @@ Stop both services with **Ctrl+C**
 | Express backend | `http://127.0.0.1:3001/` | JSON API; no frontend page at this address |
 | Health check | `http://127.0.0.1:3001/api/health` | Backend and database readiness |
 
+## Frontend navigation
+
+Use the header links to open the three frontend pages. The active link is highlighted, and the browser tab title identifies the current page.
+
+| Header link | Direct address | Purpose |
+| --- | --- | --- |
+| Model Declaration | [Model Declaration](http://127.0.0.1:5173/#model-declaration) | Saved assumptions for the selected run, or default assumptions when viewing the draft model |
+| Commercial Report | [Commercial Report](http://127.0.0.1:5173/#commercial-report) | Commercial performance, inventory and operations, findings, reconciliation checks and daily reports |
+| Catalogue | [Catalogue](http://127.0.0.1:5173/#catalogue) | Edit products and opening stock for future runs |
+
+The root address opens **Model Declaration**. Direct links, browser Back/Forward and refreshing a linked page are supported. Unrecognised page hashes fall back to Model Declaration.
+
+On any page, expand **Create or select a simulation run** to access **Create a simulation run**, **Saved runs**, **View draft model** and **Refresh run list**. The selected run's name appears above these controls. Switching pages collapses the controls so the requested page content is visible; the run form remains available when reopened.
+
+Switching pages preserves the selected run, unsaved catalogue form entries, the report's selected section and the inspected day during the current browser session. Unsaved entries and view selections reset on a full refresh; catalogue changes must be saved with **Save product**. Saved catalogue data and simulation histories remain in SQLite, and a refreshed application selects the Submitted Run or latest completed run again.
+
+Page changes update keyboard focus to the heading and return the view to the top. Keyboard users can use **Skip to content** without changing pages. The header wraps on smaller screens, and open audit dialogs close when changing pages or selecting another run.
+
+Model and report pages show a loading state while the default run is being resolved. A failed or invalid run-list response displays an error with **Try again**. If there is no selected completed run, Commercial Report explains that a run must be selected or created.
+
 ## SQLite storage and the submitted Run
 
 The primary database is **backend/database/supermarket.sqlite**.
@@ -55,8 +75,8 @@ Batch stock is calculated from recorded movement quantities; the `current_batch_
 ### How the submitted Run loads
 1. `backend/app.js` calls `openDatabase()` and passes the connection to the Express application. SQLite foreign keys and history-protection triggers are enabled, missing schema is created and catalogue seeding is checked. Existing simulation history is retained.
 2. React requests `api/health`, `api/model` and `api/runs`. The model endpoint supplies defaults for **future** runs. The runs endpoint lists persisted runs with submitted ones first and completed-day counts.
-3. / `frontend/src/App.jsx` initially chooses the run whose `is_submitted` flag is `1`. If there is no designated run, it falls back to the latest completed run.
-4. The slected Run ID is passed to the Model Declaration, commercial report, Daily reports and assurance components. These requests `/api/runs/<Run ID>/model`. `/report`,`/days/<day>` and `/assurance`.
+3. `frontend/src/App.jsx` initially chooses the run whose `is_submitted` flag is `1`. If there is no designated run, it falls back to the latest completed run.
+4. The selected Run ID is shared by Model Declaration and Commercial Report. Pages load their data on first visit; report sections load additional evidence as opened. Requests use `/api/runs/<Run ID>/model`, `/report`, `/days/<day>` and `/assurance`.
 5. Backend queries retrieve that run's frozen configuration and stored history. **Loading the page does not recreate, replay or resume the submitted run**
 
 he database bundled with this project identifies:
@@ -73,25 +93,26 @@ he database bundled with this project identifies:
 | Opening operating cash | **A$15,000.00**, funded separately |
 
 ## Inspection guide
-Open the application and confirm that **Saved runs** marks **Run manager checkpoint** as **Submitted Run**. CLick its name if aother run is selected. All report views below ues the selected Run ID, which appear in the report heading.
+Open the application, expand **Create or select a simulation run**, and confirm that **Saved runs** marks **Run manager checkpoint** as **Submitted Run**. Click its name if another run is selected. All report views below use the selected Run ID, which appears in the report heading.
 
 ### Suggested inspection sequence
-1. Open **http://127.0.0.1:5173/** after starting both services. Near the top, locate **Saved runs** beneath **Create a simulation run**. The submitted row shows its name, Run ID, completed status, **60/60** retained days and **Submitted Run** badge. A selected run's name also displays **Selected**.
-2. Click **Run manager checkpoint** to select it. Scroll to **Model declaration** and expand the assumptions. This the saved 1.0.0 declaration, even though **View draft model** shows the 1.1.0 defaults for new runs.
-3. Scroll to **60-Day commercial report** and confirm its Run ID matches the submitted row. **Commercial performance** is initially selected. The navigation buttons within this report switch the view. these are sections of the same page rather than separate routes.
-4. Review **Commmercial performance**, **Inventory and operations** and **Findings and recommendations** for the first three acceptance areas. The findings provide the written commercial reasoning and recommendations inside the website.
+1. Open **http://127.0.0.1:5173/** after starting both services. Expand **Create or select a simulation run** and locate **Saved runs** beneath **Create a simulation run**. The submitted row shows its name, Run ID, completed status, **60/60** retained days and **Submitted Run** badge. A selected run's name also displays **Selected**.
+2. Click **Run manager checkpoint** to select it. Collapse the run controls and inspect **Model Declaration**, expanding the assumptions. This is the saved 1.0.0 declaration, even though **View draft model** shows the 1.1.0 defaults for new runs.
+3. Click **Commercial Report** in the header and confirm the **60-Day Commercial Report** Run ID matches the submitted row. **Commercial performance** is initially selected. Its internal navigation buttons switch report sections within this page.
+4. Review **Commercial performance**, **Inventory and operations** and **Findings and recommendations** for the first three acceptance areas. The findings provide the written commercial reasoning and recommendations inside the website.
 5. Click **Daily reports**, select **Day 1**, **Day 30** or **Day 60** with **Inspect day**, and inspect the daily totals and ledgers. Any of the 60 days is available.
 6. Click **Reconciliation checks** to open **Commercial Assurance**. Confirm the Run ID, overall status, **60/60 days retained**, individual checks and **Retained evidence** counts. Any failing check displays its exception details. **Inspect Day 60 cash ledger** returns directly to the corresponding daily evidence.
 
 | Required evidence | Where to find it |
 | --- | --- |
-| Submitted Run | **Saved runs**, including Run ID, status, retained days and submission badge |
-| Model Declaration | **Model Declaration** below the run manager; expand the operating-rule and limitation sections |
+| Submitted Run | Expand **Create or select a simulation run**, then inspect **Saved runs**, including Run ID, status, retained days and submission badge |
+| Model Declaration | **Model Declaration** in the header; expand the operating-rule and limitation sections |
 | 60-Day Commercial Report, Part 1 | **Commercial performance**: store totals, shopper/basket measures, daily customer activity, category and product results |
 | Part 2: inventory and autonomous operations | **Inventory and operations**: event counts, inventory health, significant conditions/actions/outcomes, persistent availability problems and closing stock |
 | Part 3: commercial diagnosis | **Findings and recommendations**: three observation/evidence/diagnosis/implication/recommendation chains with model limitations |
 | Part 4: Commercial Assurance | **Reconciliation checks**, opening the **Commercial Assurance** view with PASS/FAIL checks, exceptions and retained record counts |
 | Daily Reports | **Daily Reports**, then choose any Day 1–60 using **Inspect day**, **Previous day** or **Next day** |
+| Editable catalogue | **Catalogue** in the header; saved edits affect future runs and preserve existing run snapshots |
 
 To follow the audit trail, use **Inspect Day** links from findings and operational cases, click product names to open frozen product details and inventory/batch/Brain hisotry and click sale or customer identifiers in Daily Reports to inspect basket, transaction and batch-allocation evidence.**Persistenct availability problems** includes expandable daily tables connecting requested/sold/unmet units, closing estimates, orders and next-day receipts and outcomes. 
 
@@ -101,12 +122,23 @@ For example, an expiry finding can be followed to its **Inspect Day** link, the 
 
 Assurance checks cover history completeness and opening budgets; inventory reconciliation; overselling, negative stock and expired sales; transaction/daily revenue and COGS; customer/demand reconciliation; operating cash; affordable next-day receipts; inventory valuation/write-offs; and database foreign keys. Legitimate stockouts, expiry losses and cash constraints are business outcomes, rather than automatic integrity failures. Missing event types are shown as zero.
 
-## Create and inspect and additional run
-1. In **Create a simulation run**, enter a **Run name** and **Day 1 date**.
+## Create and inspect an additional run
+1. Expand **Create or select a simulation run** on any page. In **Create a simulation run**, enter a **Run name** and **Day 1 date**.
 2. Set **Base weekday customers** and **Base weekend customers**. Defaults are 160 and 130; each accepts a whole number from 0 to 500.
 3. Optionally supply a **Random seed** from 0 to 4,294,967,295. Leave it blank to generate and store a seed automatically. Seed 0 is valid.
 4. Click **Start 60-day run** and wait for completion. The backend processes the entire history in one request; there is no day-by-day animation.
-5. The new run is selected automatically. Inspect its saved Model Declaration, reports, Daily Reports and Commercial Assurance. Earlier runs remain available in **Saved runs**.
+5. The new run is selected automatically. Use the header's **Model Declaration** and **Commercial Report** links to inspect its saved assumptions, reports, Daily Reports and Commercial Assurance. Earlier runs remain available in **Saved runs** inside the run controls.
+
+## Frontend checks
+
+Run these commands from the project root:
+
+```sh
+npm --prefix frontend run lint
+npm --prefix frontend run build
+```
+
+For browser checks, visit each header link, refresh a direct link, and use Back/Forward. Confirm that page switching preserves the selected run, an unsaved catalogue form and the report's selected section/day. Check keyboard navigation and **Skip to content**, audit-dialog cleanup on page changes, and the header layout at widths from 320px upwards.
 
 ## Architecture and data flow
 ```text
@@ -139,6 +171,7 @@ Draft configuration + current catalogue
 | `backend/services/reports.js` | Run-scoped reports, findings, daily/audit queries and submission designation |
 | `backend/services/assurance.js` | Reconciliation and integrity checks derived from recorded history |
 | `backend/createApp.js`, `app.js` | Express routes and localhost server startup |
+| `frontend/src/App.jsx`, `styles.css` | Header navigation, page state, shared run selection, collapsible run controls, keyboard focus and responsive layout |
 | `frontend/src/components/` | Run manager, Model Declaration, Catalogue, report views and audit dialog |
 | `frontend/src/services/`, `hooks/` | API requests, formatting and cancellable data loading |
 
