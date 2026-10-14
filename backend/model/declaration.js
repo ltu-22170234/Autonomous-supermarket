@@ -27,6 +27,14 @@ export function getModelDeclaration(configuration= model, runId=null){
         model.shopping.availabilityRule,
         `${model.shopping.emptyBasketRule} No substitution, discounts or price-elasticity modelling is proposed.`,
       ] },
+      ...(model.catalogue.purchaseCostBasis ? [{
+        title: 'Opening stock and purchase-cost assumptions',
+        paragraphs: [
+          model.catalogue.openingInventoryPlan,
+          model.catalogue.purchaseCostBasis,
+          `Price benchmarks reviewed ${model.catalogue.priceReviewDate}. New runs freeze the current catalogue, including any manager edits; opening quantities are not automatically recalculated for a different customer base.`,
+        ],
+      }] : []),
       { title: 'Batches and expiry', paragraphs: [
         `Opening stock is received on Day ${model.inventory.openingStockReceivedDay}. A batch expires on received day + its product shelf-life days. For example, a three-day batch received on Day 1 is saleable on Days 1–3 and removed before customers on Day 4.`,
         model.inventory.expiryRemovalRule,

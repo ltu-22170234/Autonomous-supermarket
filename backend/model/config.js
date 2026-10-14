@@ -2,7 +2,7 @@
 //Numeric weights are relative probabilities, not measured real-store data
 
 export const modelConfig = {
-    modelVersion: '1.1.0',
+    modelVersion: '1.2.0',
     status: 'draft',
     scenario: {
         name: 'Small autonomous CBD supermarket',
@@ -38,7 +38,26 @@ export const modelConfig = {
         { id: 'personal', name: 'Personal and convenience', plannedProducts: 4 },
         ],
         popularityWeightRange: { min: 1, max: 5 },
-        openingInventoryPlan: 'Use bootstrap demand and stock-cover targets as a starting point. Review perishable quantities and category breadth, then validate total cost against the budget; spending the full budget is not required.',
+        seedVersion: 'opening-stock-2026-10',
+        priceReviewDate: '2026-10-14',
+        purchaseCostBasis: 'Indicative Australian convenience-store shelf prices, with estimated buying costs at 65-80% of shelf price by category. Water and 45 g chips use public carton-price benchmarks rounded up per unit. These are planning estimates, not contracted Melbourne supplier quotes; freight, rebates and GST are not separately modelled.',
+        purchaseCostPercentByCategory: {
+          pantry: 75, drinks: 65, snacks: 70, dairy: 80,
+          fresh: 70, ready_meals: 70, household: 75, personal: 75,
+        },
+        openingInventoryPlan: 'Starting quantities use expected weekday/weekend customer activity, mean basket lines, mission/category weights, units per line and relative product popularity. A 10% planning allowance is applied. Dry food, drinks and snacks hold 10 days of cover; household and personal items 14; dairy up to 3; fresh and ready-to-eat food up to 2. Perishable cover is capped at shelf life minus one day (minimum one). Non-perishables round to declared buying packs; short-life products remain individual units. This approximate demand plan uses the default 160/130 customer bases and is not a measured store forecast. Recheck opening quantities if those bases change; the A$40,000 limit is a ceiling, not a spending target.',
+        openingStock: {
+          safetyMultiplier: 1.10,
+          coverDays: {
+            pantry: 10, drinks: 10, snacks: 10, dairy: 3,
+            fresh: 2, ready_meals: 2, household: 14, personal: 14,
+          },
+          packUnitsByCategory: {
+            pantry: 6, drinks: 24, snacks: 12, dairy: 1,
+            fresh: 1, ready_meals: 1, household: 6, personal: 6,
+          },
+          productPackUnits: { P021: 18 },
+        },
     },
     customers: {
     basePerDay: { weekday: 160, weekend: 130 },
@@ -140,6 +159,7 @@ export const modelConfig = {
         traceability: 'All history is linked to Run ID, day and relevant product/transaction/order identifiers. A change to assumptions or engine logic requires a new model version and new run.'
     },
    limitations: [
+    'Opening stock uses an approximate category/popularity forecast and assumed buying packs. Published prices are indicative benchmarks; most purchase costs are estimates requiring supplier quotes. Only starting stock uses pack rounding; subsequent replenishment still orders individual units.',
     'Customer volume, mission mix, popularity and time patterns are synthetic assumptions; real store data is needed for calibration and external validation.',
     'The prototype records intended baskets, including unmet requests. A real autonomous store would need a way to observe lost demand; completed sales alone would underestimate demand during stockouts. The 10% safety allowance is an assumption requiring calibration.',
     'All opening inventory is treated as newly received on Day 1; actual opening stock can have mixed ages.',

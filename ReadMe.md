@@ -26,6 +26,22 @@ Stop both services with **Ctrl+C**
 | Express backend | `http://127.0.0.1:3001/` | JSON API; no frontend page at this address |
 | Health check | `http://127.0.0.1:3001/api/health` | Backend and database readiness |
 
+## Revised opening inventory for future runs
+
+The editable catalogue now uses a demand-based opening-stock plan and more conservative purchase-cost estimates informed by representative Australian supplier and retail listings reviewed on **14 October 2026**. Its **60 products / 4,604 opening units cost A$14,618.10**, leaving **A$25,381.90** within the **A$40,000 maximum**. Operating cash still starts separately at **A$15,000**.
+
+See [OpeningInventoryPlan.md](OpeningInventoryPlan.md) for sources, estimated buying-cost percentages, forecast/stock-cover calculations, category totals and the full product plan. Most buying costs require supplier quotes; these benchmarks do not establish a contracted 60-item Melbourne basket. Starting stock uses pack rounding and shelf-life limits; later replenishment retains individual-unit ordering.
+
+The future-run model is **1.2.0**, with simulation engine **1.1.0**. The existing **Submitted Run remains 1.0.0**, with its original **A$3,143.90** opening stock and unchanged reports. Catalogue figures describe future runs; create a separate run to review the revised scenario.
+
+This workspace's database is already updated. Fresh databases seed the revised catalogue automatically. To upgrade another copy containing the original unedited catalogue:
+
+```sh
+npm --prefix backend run update:opening-inventory
+```
+
+The repeatable update validates the budget and verifies that stored history is unchanged. It refuses to overwrite custom catalogue edits. Original inputs remain in `backend/data/catalogue-v1.json`.
+
 ## Frontend navigation
 
 Use the header links to open the three frontend pages. The active link is highlighted, and the browser tab title identifies the current page.
@@ -97,7 +113,7 @@ Open the application, expand **Create or select a simulation run**, and confirm 
 
 ### Suggested inspection sequence
 1. Open **http://127.0.0.1:5173/** after starting both services. Expand **Create or select a simulation run** and locate **Saved runs** beneath **Create a simulation run**. The submitted row shows its name, Run ID, completed status, **60/60** retained days and **Submitted Run** badge. A selected run's name also displays **Selected**.
-2. Click **Run manager checkpoint** to select it. Collapse the run controls and inspect **Model Declaration**, expanding the assumptions. This is the saved 1.0.0 declaration, even though **View draft model** shows the 1.1.0 defaults for new runs.
+2. Click **Run manager checkpoint** to select it. Collapse the run controls and inspect **Model Declaration**, expanding the assumptions. This is the saved 1.0.0 declaration, even though **View draft model** shows the 1.2.0 defaults for new runs.
 3. Click **Commercial Report** in the header and confirm the **60-Day Commercial Report** Run ID matches the submitted row. **Commercial performance** is initially selected. Its internal navigation buttons switch report sections within this page.
 4. Review **Commercial performance**, **Inventory and operations** and **Findings and recommendations** for the first three acceptance areas. The findings provide the written commercial reasoning and recommendations inside the website.
 5. Click **Daily reports**, select **Day 1**, **Day 30** or **Day 60** with **Inspect day**, and inspect the daily totals and ledgers. Any of the 60 days is available.
@@ -164,7 +180,8 @@ Draft configuration + current catalogue
 | Location | Responsibility |
 | --- | --- |
 | `backend/model/config.js`, `declaration.js` | Defaults for future runs and readable declarations saved at run start |
-| `backend/data/catalogue.js`, `services/catalogue.js` | Seed range, pack sizes, costs/prices, popularity and catalogue validation |
+| `backend/data/catalogue.js`, `model/openingInventory.js`, `services/catalogue.js` | Reviewed price assumptions, demand-based opening quantities, pack/shelf-life limits and catalogue validation |
+| `backend/services/openingCatalogue.js`, `scripts/update-opening-inventory.js` | Explicit catalogue update with custom-edit protection and historical-evidence verification |
 | `backend/db.js`, `database/init.sql` | SQLite connection, schema, constraints and append-only history triggers |
 | `backend/services/simulation.js` | Run snapshots, seeded customer/shopping generation, batches, sales, cash and daily evidence |
 | `backend/services/brain.js` | Inventory assessment, replenishment allocation and eligible batch fulfilment |
@@ -219,7 +236,7 @@ A 24-hour CBD store uses a daily count of `round(base customers × uniform multi
 
 For each visitor, a weighted time band and arrival minute are sampled, and a mission is selected using the weekday/weekend probabilities. The weekday 10:00–14:00 band receives 40% of arrivals, versus 28% on weekends. Basket-line counts are sampled within the mission's range. Each line selects an eligible category, then a not-yet-selected product using popularity weights; the same product is not selected twice within one intended basket. These are declared scenario assumptions, not observed Melbourne footfall.
 
-Intended baskets are generated before availability checks. Only available, non-expired units are supplied; unfulfilled requests and visits without purchases remain recorded. The store does not substitute products. The range spans pantry, drinks, snacks, dairy/chilled, fresh/bakery, ready-to-eat, household and personal/convenience products. Opening quantities use popularity-based bootstrap demand and conservative stock cover, especially for short-lived items; spending the entire inventory budget is not a goal.
+Intended baskets are generated before availability checks. Only available, non-expired units are supplied; unfulfilled requests and visits without purchases remain recorded. The store does not substitute products. The range spans pantry, drinks, snacks, dairy/chilled, fresh/bakery, ready-to-eat, household and personal/convenience products. The Submitted Run's opening quantities used popularity-based bootstrap demand. The revised catalogue uses expected mission/category demand, relative popularity, a 10% allowance, stock-cover targets and opening buying packs, with shelf-life limits for short-lived items; spending the entire inventory budget is not a goal.
 
 For example, a request for two units when only one valid unit is available records two requested, one fulfilled and one unmet. Only the fulfilled unit enters the sale, COGS and cash ledger. If no requested line can be fulfilled, the visitor and demand remain in history but no completed transaction is created. Customers, completed transactions and requested units therefore describe different quantities.
 
@@ -229,11 +246,11 @@ For example, a request for two units when only one valid unit is available recor
 
 **Inventory rules.** A batch expires on `received day + shelf-life days`; expired stock is removed before sales. Fulfilment uses earliest expiry first, then receipt order. Remaining perishable stock within two days of expiry is flagged. Sold-out means zero closing saleable stock; low-stock means positive closing stock at or below two days of estimated demand. Tomorrow-expiring units are excluded when assessing replenishment needs. After 14 completed days, products whose recent 14-day sales are less than half their closing stock are flagged as slow movers.
 
-**Demand versions and ordering.** The Submitted Run (1.0.0) estimates demand from the last up to seven completed days of **sales**, including zero-sale days. New runs (1.1.0) use **requested units, including unmet requests**, over the same window, multiplied by **1.10**. Both apply a 0.25-unit/day minimum. Normal target cover is seven days for non-perishables and three for perishables, capped by shelf life; slow-mover targets fall to three and one respectively. Orders cover the gap between target and usable stock when the reorder threshold is reached. Priority is projected sold-out products, lower cover, higher unit margin, then product ID. Quantities are reduced or deferred when cash cannot fund them; individual manager approval is not required.
+**Demand versions and ordering.** The Submitted Run (1.0.0) estimates demand from the last up to seven completed days of **sales**, including zero-sale days. The 1.1.0 demand revision, retained by new model 1.2.0 runs, uses **requested units, including unmet requests**, over the same window, multiplied by **1.10**. Both apply a 0.25-unit/day minimum. Normal target cover is seven days for non-perishables and three for perishables, capped by shelf life; slow-mover targets fall to three and one respectively. Orders cover the gap between target and usable stock when the reorder threshold is reached. Priority is projected sold-out products, lower cover, higher unit margin, then product ID. Quantities are reduced or deferred when cash cannot fund them; individual manager approval is not required.
 
 ### Replenishment calculation and worked example
 
-For current 1.1.0 runs, the closing review uses:
+For the 1.1.0 demand engine, retained by current model 1.2.0 runs, the closing review uses:
 
 ```text
 Estimated daily demand = max(0.25, mean recent requested units * 1.10)

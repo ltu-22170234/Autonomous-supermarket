@@ -343,6 +343,18 @@ export default function Catalogue() {
         {' Opening quantities are starting stock, rather than live inventory.'}
       </p>
 
+      {model.catalogue?.purchaseCostBasis && (
+        <details>
+          <summary>Opening stock and cost assumptions</summary>
+          <p>{model.catalogue.openingInventoryPlan}</p>
+          <p>{model.catalogue.purchaseCostBasis}</p>
+          <p className="muted small">
+            Price benchmarks reviewed {model.catalogue.priceReviewDate}.
+            {' Review supplier costs and starting quantities before creating a run.'}
+          </p>
+        </details>
+      )}
+
       {openingCost > budget && (
         <p className="notice error" role="alert">
           Opening stock exceeds {money(budget)}.

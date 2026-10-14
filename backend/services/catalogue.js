@@ -40,7 +40,7 @@ export function seedProducts(db) {
   db.exec('BEGIN');
   try {
     products.forEach((p)=>insert.run(...productColumns.map((key)=>p[key])));
-    db.prepare("INSERT INTO app_settings(key,value) VALUES ('catalogue_seeded','v1')").run();
+    db.prepare("INSERT INTO app_settings(key,value) VALUES ('catalogue_seeded',?)").run(modelConfig.catalogue.seedVersion);
     db.exec('COMMIT');
   } catch(e) { db.exec('ROLLBACK'); throw e; }
 }

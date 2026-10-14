@@ -125,6 +125,7 @@ export default function ModelDeclaration({ runId = null }) {
       <h3>Product catalogue assumptions</h3>
 
       <p>{model.catalogue.openingInventoryPlan}</p>
+      {model.catalogue.purchaseCostBasis && <p>{model.catalogue.purchaseCostBasis}</p>}
 
       <Table
         title="Declared category plan"
